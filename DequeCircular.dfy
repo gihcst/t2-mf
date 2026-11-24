@@ -12,7 +12,7 @@ class DequeCircular {
   ghost var CapacidadeMax: int
 
   // Função auxiliar linear para mapear índice lógico -> índice circular no array (evita '%' / timeout)
-  function Indice(i: int): int
+  ghost function Indice(i: int): int
     reads this
     requires arr.Length > 0
     requires 0 <= head < arr.Length
@@ -110,7 +110,8 @@ class DequeCircular {
       invariant forall j :: 0 <= j < i ==> Conteudo[j] != x
       decreases n - i
     {
-      if arr[Indice(i)] == x {
+      var idx := if head + i < arr.Length then head + i else head + i - arr.Length;
+      if arr[idx] == x {
         assert Conteudo[i] == x;
         return true;
       }
@@ -243,6 +244,8 @@ method Main() {
   assert dq.Tamanho() == 0;
   assert dq.Capacidade() == 3;
   assert dq.Conteudo == [];
+  var temVazio := dq.Contem(10);
+  assert !temVazio;
 
   // Inserções no fim e no início (forçando circularidade do índice head)
   dq.AdicionarFim(10);
@@ -255,6 +258,11 @@ method Main() {
   assert dq.Conteudo == [5, 10, 20];
   assert dq.EstaCheio();
   assert dq.Tamanho() == 3;
+
+  var tem5 := dq.Contem(5);
+  assert tem5;
+  var tem20 := dq.Contem(20);
+  assert tem20;
 
   // Busca de elementos
   var tem10 := dq.Contem(10);
@@ -294,5 +302,5 @@ method Main() {
   assert dq.Tamanho() == 0;
   assert dq.Conteudo == [];
 
-  print "Todos os testes unitarios passaram com sucesso!\n";
+  print "Todos os testes passaram bonitinho!\n";
 }
