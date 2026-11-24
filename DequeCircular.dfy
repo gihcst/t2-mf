@@ -9,6 +9,18 @@ class DequeCircular {
   // --- Representação Abstrata (Ghost) ---
   ghost var Conteudo: seq<int>
   ghost var Repr: set<object>
+  ghost var CapacidadeMax: int
+
+  // Função auxiliar linear para mapear índice lógico -> índice circular no array (evita '%' / timeout)
+  function Indice(i: int): int
+    reads this
+    requires arr.Length > 0
+    requires 0 <= head < arr.Length
+    requires 0 <= i < arr.Length
+  {
+    if head + i < arr.Length then head + i
+    else head + i - arr.Length
+  }
 
   // Função auxiliar ghost para calcular a quantidade de elementos a partir de head e tail
   ghost function TamanhoLogico(): int
@@ -27,11 +39,13 @@ class DequeCircular {
     this in Repr &&
     arr in Repr &&
     arr.Length >= 2 && // Capacidade mínima 1 + 1 posição sentinela
+    CapacidadeMax == arr.Length - 1 &&
+    CapacidadeMax > 0 &&
     0 <= head < arr.Length &&
     0 <= tail < arr.Length &&
     |Conteudo| == TamanhoLogico() &&
     |Conteudo| <= arr.Length - 1 &&
-    forall i :: 0 <= i < |Conteudo| ==> Conteudo[i] == arr[(head + i) % arr.Length]
+    forall i :: 0 <= i < |Conteudo| ==> Conteudo[i] == arr[Indice(i)]
   }
 
   // --- Construtor ---
@@ -47,6 +61,7 @@ class DequeCircular {
     tail := 0;
     Conteudo := [];
     Repr := {this, arr};
+    CapacidadeMax := capacidade;
   }
 
   // --- Operações de Consulta ---
@@ -54,7 +69,7 @@ class DequeCircular {
   function Capacidade(): int
     reads this, Repr
     requires Valid()
-    ensures Capacidade() == arr.Length - 1
+    ensures Capacidade() == CapacidadeMax
   {
     arr.Length - 1
   }
@@ -81,7 +96,7 @@ class DequeCircular {
     requires Valid()
     ensures EstaCheio() <==> |Conteudo| == Capacidade()
   {
-    (tail + 1) % arr.Length == head
+    (if tail + 1 < arr.Length then tail + 1 else 0) == head
   }
 
   method Contem(x: int) returns (encontrado: bool)
@@ -95,7 +110,7 @@ class DequeCircular {
       invariant forall j :: 0 <= j < i ==> Conteudo[j] != x
       decreases n - i
     {
-      if arr[(head + i) % arr.Length] == x {
+      if arr[Indice(i)] == x {
         assert Conteudo[i] == x;
         return true;
       }
@@ -116,7 +131,7 @@ class DequeCircular {
     ensures Conteudo == old(Conteudo) + [x]
   {
     arr[tail] := x;
-    tail := (tail + 1) % arr.Length;
+    tail := if tail + 1 < arr.Length then tail + 1 else 0;
     Conteudo := Conteudo + [x];
   }
 
@@ -136,15 +151,16 @@ class DequeCircular {
     arr[head] := x;
     Conteudo := [x] + Conteudo;
 
-    // Prova construtiva para cada posição i do novo Conteudo
+    // Prova construtiva linear para cada posição i do novo Conteudo
     forall i | 0 <= i < |Conteudo|
-      ensures Conteudo[i] == arr[(head + i) % arr.Length]
+      ensures Conteudo[i] == arr[Indice(i)]
     {
       if i == 0 {
-        assert (head + 0) % arr.Length == head;
+        assert Indice(0) == head;
       } else {
-        assert (head + i) % arr.Length == (oldHead + (i - 1)) % arr.Length;
-        assert oldConteudo[i - 1] == arr[(oldHead + (i - 1)) % arr.Length];
+        var oldIdx := if oldHead + (i - 1) < arr.Length then oldHead + (i - 1) else oldHead + (i - 1) - arr.Length;
+        assert Indice(i) == oldIdx;
+        assert oldConteudo[i - 1] == arr[oldIdx];
       }
     }
   }
@@ -160,7 +176,7 @@ class DequeCircular {
     ensures Conteudo == old(Conteudo)[1..]
   {
     x := arr[head];
-    head := (head + 1) % arr.Length;
+    head := if head + 1 < arr.Length then head + 1 else 0;
     Conteudo := Conteudo[1..];
   }
 
@@ -175,8 +191,6 @@ class DequeCircular {
     ensures Conteudo == old(Conteudo)[..|old(Conteudo)| - 1]
   {
     var novoTail := if tail > 0 then tail - 1 else arr.Length - 1;
-    assert novoTail == (tail - 1 + arr.Length) % arr.Length;
-    assert novoTail == (head + |Conteudo| - 1) % arr.Length;
     tail := novoTail;
     x := arr[tail];
     Conteudo := Conteudo[..|Conteudo| - 1];
@@ -207,8 +221,9 @@ class DequeCircular {
       invariant forall k :: 0 <= k < i ==> novoArr[k] == oldConteudo[k]
       decreases n - i
     {
-      assert oldConteudo[i] == oldArr[(oldHead + i) % oldArr.Length];
-      novoArr[i] := oldArr[(oldHead + i) % oldArr.Length];
+      var idx := if oldHead + i < oldArr.Length then oldHead + i else oldHead + i - oldArr.Length;
+      assert oldConteudo[i] == oldArr[idx];
+      novoArr[i] := oldArr[idx];
       i := i + 1;
     }
 
@@ -216,6 +231,7 @@ class DequeCircular {
     head := 0;
     tail := n;
     Repr := {this, arr};
+    CapacidadeMax := novaCapacidade;
   }
 }
 
@@ -246,29 +262,37 @@ method Main() {
   var tem99 := dq.Contem(99);
   assert !tem99;
 
-  // Remoções nas duas extremidades
-  var ini := dq.RemoverInicio();
-  assert ini == 5;
-  assert dq.Conteudo == [10, 20];
-
-  var fim := dq.RemoverFim();
-  assert fim == 20;
-  assert dq.Conteudo == [10];
-  assert !dq.EstaVazio();
-
-  // Redimensionamento para capacidade maior
+  // Redimensionamento com o array circular "quebrado" (head > tail)
   dq.Redimensionar(5);
   assert dq.Capacidade() == 5;
-  assert dq.Tamanho() == 1;
-  assert dq.Conteudo == [10];
+  assert dq.Tamanho() == 3;
+  assert dq.Conteudo == [5, 10, 20];
   assert !dq.EstaCheio();
 
   // Novas inserções após redimensionar
   dq.AdicionarInicio(1);
   dq.AdicionarFim(30);
-  dq.AdicionarFim(40);
-  assert dq.Conteudo == [1, 10, 30, 40];
-  assert dq.Tamanho() == 4;
+  assert dq.Conteudo == [1, 5, 10, 20, 30];
+  assert dq.EstaCheio();
+  assert dq.Tamanho() == 5;
+
+  // Remoções nas duas extremidades até esvaziar completamente
+  var r1 := dq.RemoverInicio();
+  assert r1 == 1;
+  var r2 := dq.RemoverFim();
+  assert r2 == 30;
+  assert dq.Conteudo == [5, 10, 20];
+
+  var r3 := dq.RemoverInicio();
+  assert r3 == 5;
+  var r4 := dq.RemoverFim();
+  assert r4 == 20;
+  var r5 := dq.RemoverInicio();
+  assert r5 == 10;
+
+  assert dq.EstaVazio();
+  assert dq.Tamanho() == 0;
+  assert dq.Conteudo == [];
 
   print "Todos os testes unitarios passaram com sucesso!\n";
 }

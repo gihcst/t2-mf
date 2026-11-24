@@ -1,0 +1,19 @@
+# Artefatos gerados pelo Dafny na execução/compilação
+
+# Código e projeto gerados
+*.cs
+*.csproj
+
+# Binários e metadados do .NET
+*.dll
+*.exe
+*.pdb
+*.deps.json
+*.runtimeconfig.json
+
+# Diretórios de build
+bin/
+obj/
+
+# Executável gerado (Linux/macOS, sem extensão)
+DequeCircular
