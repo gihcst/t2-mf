@@ -65,7 +65,6 @@ class DequeCircular {
   }
 
   // --- Operações de Consulta ---
-
   function Capacidade(): int
     reads this, Repr
     requires Valid()
@@ -121,7 +120,6 @@ class DequeCircular {
   }
 
   // --- Operações de Inserção e Remoção ---
-
   method AdicionarFim(x: int)
     requires Valid()
     requires !EstaCheio()
@@ -198,7 +196,6 @@ class DequeCircular {
   }
 
   // --- Operação de Redimensionamento ---
-
   method Redimensionar(novaCapacidade: int)
     requires Valid()
     requires novaCapacidade > Capacidade()
@@ -259,14 +256,13 @@ method Main() {
   assert dq.EstaCheio();
   assert dq.Tamanho() == 3;
 
+  // Busca de elementos
   var tem5 := dq.Contem(5);
   assert tem5;
-  var tem20 := dq.Contem(20);
-  assert tem20;
-
-  // Busca de elementos
   var tem10 := dq.Contem(10);
   assert tem10;
+  var tem20 := dq.Contem(20);
+  assert tem20;
   var tem99 := dq.Contem(99);
   assert !tem99;
 
